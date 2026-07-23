@@ -1,0 +1,66 @@
+Gizmo {
+ name NitsQC
+ selected true
+ addUserKnob {20 nitsqc_tab l "Nits QC"}
+ addUserKnob {26 info l "" +STARTLINE T "ACEScg/ACES2065 -> HDR ODT -> yarkost v nitah."}
+ addUserKnob {41 in_cs l "Vhodnoe prostranstvo" T to_pq.in_colorspace}
+ addUserKnob {41 out_cs l "HDR output (ODT)" T to_pq.out_colorspace}
+ addUserKnob {4 metric l Metrika M {"Max R/G/B (MaxCLL)" "Yarkost Y (Rec.2020)"}}
+ addUserKnob {7 limit l "Limit (nit)" R 0 1000}
+ limit 650
+ addUserKnob {7 warn l "Porog predupr (dolya limita)"}
+ warn 0.9
+ addUserKnob {4 mode l "Rezhim (viewer)" M {"False color" "Znachenie v nitah"}}
+ addUserKnob {26 div1 l "" +STARTLINE}
+ addUserKnob {22 analyze l "ZAMERIT KADR (max nit)" -STARTLINE T "import nuke\ng = nuke.thisNode()\nct = g.node('ct')\nf = nuke.frame()\ntry:\n    ct\['operation'].setValue('Max Luma Pixel')\n    ct\['ROI'].setValue(\[0, 0, g.width(), g.height()])\n    nuke.execute(ct, f, f)\n    mv = ct\['maxlumapixvalue']\n    try:\n        mx = max(mv.getValue(0), mv.getValue(1), mv.getValue(2))\n    except Exception:\n        mx = mv.getValue()\n    lim = g\['limit'].value()\n    g\['max_nits'].setValue(mx)\n    if mx <= lim:\n        g\['verdict'].setValue('OK: v diapazone (zapas %.0f nit)' % (lim - mx))\n    else:\n        g\['verdict'].setValue('!!! PREVYSHENIE na %.0f nit' % (mx - lim))\n    g\['label'].setValue('max: %.0f nit' % mx)\nexcept Exception as e:\n    g\['verdict'].setValue('error: %r' % e)\n"}
+ addUserKnob {7 max_nits l "MAKS. YARKOST, nit" R 0 10000}
+ addUserKnob {26 verdict l Status T "(nazhmi Zamerit kadr)"}
+ addUserKnob {26 div_author l "" +STARTLINE}
+ addUserKnob {26 author l Author T @borisfaley}
+}
+ Input {
+  inputs 0
+  name Input1
+ }
+ OCIOColorSpace {
+  in_colorspace "ACES - ACEScg"
+  out_colorspace "Output - Rec.2020 ST2084 (1000 nits)"
+  name to_pq
+ }
+ Expression {
+  expr0 10000*pow(max(pow(clamp(r,0,1),0.012683313515655965)-0.8359375,0)/(18.8515625-18.6875*pow(clamp(r,0,1),0.012683313515655965)),6.277394636015326)
+  expr1 10000*pow(max(pow(clamp(g,0,1),0.012683313515655965)-0.8359375,0)/(18.8515625-18.6875*pow(clamp(g,0,1),0.012683313515655965)),6.277394636015326)
+  expr2 10000*pow(max(pow(clamp(b,0,1),0.012683313515655965)-0.8359375,0)/(18.8515625-18.6875*pow(clamp(b,0,1),0.012683313515655965)),6.277394636015326)
+  expr3 a
+  name pq_decode
+ }
+ Expression {
+  expr0 parent.metric==0?max(r,max(g,b)):0.2627*r+0.6780*g+0.0593*b
+  expr1 parent.metric==0?max(r,max(g,b)):0.2627*r+0.6780*g+0.0593*b
+  expr2 parent.metric==0?max(r,max(g,b)):0.2627*r+0.6780*g+0.0593*b
+  expr3 (parent.metric==0?max(r,max(g,b)):0.2627*r+0.6780*g+0.0593*b)>parent.limit?1:0
+  name metric
+ }
+set Ndaefe80 [stack 0]
+ CurveTool {
+  operation "Max Luma Pixel"
+  name ct
+ }
+push $Ndaefe80
+push $Ndaefe80
+ Expression {
+  expr0 r>parent.limit?1:(r>parent.warn*parent.limit?1:0)
+  expr1 r>parent.limit?0:(r>parent.warn*parent.limit?1:clamp(r/parent.limit,0,1))
+  expr2 0
+  expr3 r>parent.limit?1:0
+  name falsecolor
+ }
+ Switch {
+  inputs 2
+  which {{parent.mode}}
+  name mode_switch
+ }
+ Output {
+  name Output1
+ }
+end_group
